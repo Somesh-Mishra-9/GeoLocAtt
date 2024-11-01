@@ -1,10 +1,33 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {View, Text, StyleSheet, TouchableOpacity, Image} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Geolocation from 'react-native-geolocation-service';
 
-const Home = () => {
-  const [isCheckedIn, setIsCheckedIn] = useState(false);
+const Home = ({dist}) => {
+
+  console.log(dist);
+
   const navigation = useNavigation();
+  useEffect(() => {
+    const checkLoggedIn = async () => {
+      try {
+        const accessToken = await AsyncStorage.getItem('accessToken');
+        if (!accessToken) {
+         navigation.navigate('Login');
+        }
+      } catch (error) {
+        console.error('Error checking for token:', error);
+      }
+    };
+    checkLoggedIn();
+  }, []);
+
+
+
+
+  const [isCheckedIn, setIsCheckedIn] = useState(false);
+
 
   const handleCheckin = () => {
     setIsCheckedIn(true);
@@ -25,18 +48,23 @@ const Home = () => {
           <View style={styles.locationText}>
             <Text style={styles.locationTitle}>Your Allocated Location:</Text>
             <Text style={styles.locationDetails}>
-             GAIL Corporate Office: GAIL(INDIA) Ltd. 
+             GAIL Corporate Office: GAIL(INDIA) Ltd.
             </Text>
             <Text style={styles.locationDetails}>
               GAIL Bhawan, 16 Bhikaji Cama Place, RK Puram, New Delhi - 110066
             </Text>
           </View>
         </View>
+        <View>
+          <Text>
+            Distance from office: <Text style={{fontWeight:'800'}}>{dist} meters</Text>
+          </Text>
+        </View>
         <View style={styles.statusContainer}>
           <View style={styles.status}>
             <Text style={styles.statusTitle}>Current status:</Text>
             <Text style={styles.statusValue}>
-              {isCheckedIn ? <Text style={{color:'green', fontWeight:'700'}}>Checked-in</Text>:<Text style={{color:'red', fontWeight:'700'}}>Not Checked-in</Text>}
+              {isCheckedIn ? <Text style={{ color:'green', fontWeight:'700' }}>Checked-in</Text> : <Text style={{color:'red', fontWeight:'700'}}>Not Checked-in</Text>}
             </Text>
           </View>
           <View style={styles.status}>
@@ -44,8 +72,8 @@ const Home = () => {
             <Text style={[styles.statusValue,{color:'green', fontWeight:'700'}]}>Inside 200 m radius</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.checkinButton} onPress={handleCheckin}>
-          <Text style={styles.checkinButtonText}>Check-in</Text>
+        <TouchableOpacity style={!isCheckedIn ? styles.checkinButton : styles.checkoutButton}  onPress={handleCheckin}>
+          {isCheckedIn ? <Text style={styles.checkinButtonText}>Check-out</Text>:<Text style ={styles.checkinButtonText}>Check-in</Text> }
         </TouchableOpacity>
       </View>
 
@@ -55,7 +83,6 @@ const Home = () => {
             <Image
               source={{
                 uri: 'https://cdn-icons-png.flaticon.com/512/6821/6821002.png',
-               
               }}
               style={styles.icon}
             />
@@ -166,6 +193,15 @@ const styles = StyleSheet.create({
   },
   checkinButton: {
     backgroundColor: 'green',
+    padding: 10,
+    margin: 12,
+    width: '50%',
+    alignSelf: 'center',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  checkoutButton: {
+    backgroundColor: '#fc120a',
     padding: 10,
     margin: 12,
     width: '50%',

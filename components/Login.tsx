@@ -1,3 +1,4 @@
+
 import React, {useState} from 'react';
 import {
   StyleSheet,
@@ -5,18 +6,55 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome6';
 import Home from './Home';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+
+
+
+
 const Login = props => {
-  const [userId, setUserId] = useState('');
+  const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = () => {
-    // Implement your login logic here
-    console.log('User ID:', userId);
-    console.log('Password:', password);
+
+  const loginUser = async () => {
+    try {
+      const response = await axios.post('http://192.168.153.217:8000/api/v1/users/login', {
+        email: emailOrUsername.includes('@') ? emailOrUsername : undefined,
+        username: !emailOrUsername.includes('@') ? emailOrUsername : undefined,
+        password
+      });
+
+      // console.log('Response data:', response.data);
+      
+      if (response.status === 200) {
+        const { accessToken, refreshToken } = response.data.data;
+
+        // console.log('Access Token:', accessToken);  // Log tokens for debugging
+        // console.log('Refresh Token:', refreshToken);
+  
+        if (!accessToken || !refreshToken) {
+          throw new Error('Invalid tokens received');
+        }
+        
+        // Store tokens securely
+        await AsyncStorage.setItem('accessToken', accessToken);
+        await AsyncStorage.setItem('refreshToken', refreshToken);
+  
+      
+        props.navigation.navigate('Home');
+      }
+    } catch (error) {
+      console.error('Login failed', error);
+    }
   };
+
+ 
 
   return (
     <View style={styles.container}>
@@ -34,13 +72,12 @@ const Login = props => {
         <Text style={styles.loginText}>Login</Text>
 
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>User ID</Text>
+          <Text style={styles.inputLabel}>Username</Text>
           <TextInput
             style={styles.input}
-            value={userId}
-            onChangeText={setUserId}
-            placeholder="Enter User ID"
-            keyboardType="numeric"
+            value={emailOrUsername}
+            onChangeText={setEmailOrUsername}
+            placeholder="Enter your username"
           />
         </View>
 
@@ -50,7 +87,7 @@ const Login = props => {
             style={styles.input}
             value={password}
             onChangeText={setPassword}
-            placeholder="Enter Password"
+            placeholder="Enter your password"
             secureTextEntry={true}
           />
           <TouchableOpacity
@@ -62,12 +99,8 @@ const Login = props => {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-          <Text
-            style={styles.loginButtonText}
-            onPress={() => {
-              props.navigation.navigate('Home');
-            }}>
+        <TouchableOpacity style={styles.loginButton} onPress={loginUser}>
+          <Text style={styles.loginButtonText}>
             Log In
           </Text>
         </TouchableOpacity>
@@ -83,10 +116,8 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     justifyContent: 'center',
-    // marginTop: 50,
-
     backgroundColor: '#696ee5',
-    height: 160,
+    height: 100,
   },
   title: {
     fontSize: 24,

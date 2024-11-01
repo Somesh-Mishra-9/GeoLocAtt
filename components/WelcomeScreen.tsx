@@ -6,9 +6,9 @@ const WelcomeScreen = ({ navigation }) => {
   useEffect(() => {
     // Automatically navigate to the Home screen after 3 seconds
     const timer = setTimeout(() => {
-      navigation.replace('Login');
+      navigation.replace('Home');
     }, 3000);
-    
+
     // Clear the timer if the component unmounts
     return () => clearTimeout(timer);
   }, [navigation]);
@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
   img:{
    height:100,
    width:100,
-    
+
   }
 });
 
