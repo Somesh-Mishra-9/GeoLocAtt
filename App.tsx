@@ -32,6 +32,8 @@ import PasswordUpdate from './components/PasswordUpdate';
 import WelcomeScreen from './components/WelcomeScreen';
 import Register from './components/Register';
 
+
+
 const Stack = createStackNavigator();
 
 const DrawerContent = ({ drawer }) => {
@@ -75,6 +77,19 @@ const DrawerContent = ({ drawer }) => {
 
 
 const App = () => {
+//  Background Location Tracking
+
+
+
+
+
+
+
+
+
+
+
+
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [dist, setDist] = useState('');
   const officeCoordinates = { latitude: 25.9992494, longitude: 84.6902146 };
@@ -149,16 +164,14 @@ const App = () => {
     return distance <= 200;
   };
 
-  const themeConfig = {
-    ...config,
-    config: {
-      initialColorMode: 'light',
-      useSystemColorMode: false,
-    },
-  };
+
+
+
+
+
 
   return (
-    <GluestackUIProvider config={themeConfig}>
+    <GluestackUIProvider >
       <NavigationContainer>
         <DrawerLayoutAndroid
           ref={drawer}

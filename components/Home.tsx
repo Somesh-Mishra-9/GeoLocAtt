@@ -73,7 +73,7 @@ const Home = ({dist}) => {
           </View>
         </View>
         <TouchableOpacity style={!isCheckedIn ? styles.checkinButton : styles.checkoutButton}  onPress={handleCheckin}>
-          {isCheckedIn ? <Text style={styles.checkinButtonText}>Check-out</Text>:<Text style ={styles.checkinButtonText}>Check-in</Text> }
+          {isCheckedIn ? <Text style={styles.checkinButtonText}>Check-out</Text> : <Text style ={styles.checkinButtonText}>Check-in</Text> }
         </TouchableOpacity>
       </View>
 

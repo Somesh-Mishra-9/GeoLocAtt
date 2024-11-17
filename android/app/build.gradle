@@ -135,6 +135,16 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
+    // implementation project(':@mauron85_react-native-background-geolocation')
+
+    // https://mvnrepository.com/artifact/com.intentfilter/android-permissions
+// implementation("com.intentfilter:android-permissions:0.1.7")
+
+
+   
+
+
+
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {

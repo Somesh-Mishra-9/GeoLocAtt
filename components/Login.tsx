@@ -24,13 +24,14 @@ const Login = props => {
 
   const loginUser = async () => {
     try {
-      const response = await axios.post('http://192.168.153.217:8000/api/v1/users/login', {
+      console.log('Logging in...');
+      const response = await axios.post('http://192.168.160.217:8000/api/v1/users/login', {
         email: emailOrUsername.includes('@') ? emailOrUsername : undefined,
         username: !emailOrUsername.includes('@') ? emailOrUsername : undefined,
         password
       });
 
-      // console.log('Response data:', response.data);
+      console.log('Response data:', response.data);
       
       if (response.status === 200) {
         const { accessToken, refreshToken } = response.data.data;
