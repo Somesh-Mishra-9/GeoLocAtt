@@ -156,6 +156,14 @@ const App = () => {
     } catch (err) {
       console.warn(err);
     }
+
+    const backgroundGranted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION
+    );
+    if (backgroundGranted !== PermissionsAndroid.RESULTS.GRANTED) {
+      Alert.alert('Background location permission denied.');
+    }
+
   };
 
   const isWithinRadius = (userCoords) => {
@@ -164,6 +172,13 @@ const App = () => {
     return distance <= 200;
   };
 
+  const themeConfig = {
+    ...config,
+    config: {
+      initialColorMode: 'light',
+      useSystemColorMode: false,
+    },
+  };
 
 
 
@@ -171,7 +186,7 @@ const App = () => {
 
 
   return (
-    <GluestackUIProvider >
+    <GluestackUIProvider config={themeConfig}>
       <NavigationContainer>
         <DrawerLayoutAndroid
           ref={drawer}
