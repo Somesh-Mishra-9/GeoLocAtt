@@ -1,36 +1,212 @@
-import React, {useEffect, useState} from 'react';
-import {View, Text, StyleSheet, TouchableOpacity, Image} from 'react-native';
+import React, {useEffect, useState, useRef} from 'react';
+import {View, Text, StyleSheet, TouchableOpacity, Image, Alert, Platform, PermissionsAndroid, NativeModules} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Geolocation from 'react-native-geolocation-service';
+import RNLocation from 'react-native-location';
+import auth from '@react-native-firebase/auth';
+import messaging from '@react-native-firebase/messaging';
 
-const Home = ({dist}) => {
+// Define types
+type LocationType = {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  speed: number | null;
+  altitude: number | null;
+};
 
-  console.log(dist);
+type HomeProps = {
+  dist: number;
+};
 
-  const navigation = useNavigation();
+// Define geolocation types to avoid linter errors
+interface GeolocationPosition {
+  coords: {
+    latitude: number;
+    longitude: number;
+    altitude: number | null;
+    accuracy: number;
+    altitudeAccuracy: number | null;
+    heading: number | null;
+    speed: number | null;
+  };
+  timestamp: number;
+}
+
+const Home = ({dist}: HomeProps) => {
+  const navigation = useNavigation<any>();
+  const [isCheckedIn, setIsCheckedIn] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [location, setLocation] = useState<LocationType | null>(null);
+  const locationTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     const checkLoggedIn = async () => {
       try {
-        const accessToken = await AsyncStorage.getItem('accessToken');
-        if (!accessToken) {
-         navigation.navigate('Login');
+        const user = auth().currentUser;
+        if (!user) {
+          navigation.navigate('Login');
         }
       } catch (error) {
-        console.error('Error checking for token:', error);
+        console.error('Error checking auth:', error);
+        navigation.navigate('Login');
       }
     };
     checkLoggedIn();
+    
+    // Configure location
+    setupLocation();
+
+    // Clean up timer on unmount
+    return () => {
+      if (locationTimerRef.current) {
+        clearInterval(locationTimerRef.current);
+      }
+    };
   }, []);
 
+  const setupLocation = async () => {
+    try {
+      // First check and request location permissions
+      if (Platform.OS === 'android') {
+        try {
+          // Request Android permissions
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+            {
+              title: 'Location Permission',
+              message: 'App needs access to your location to mark attendance.',
+              buttonPositive: 'OK',
+              buttonNegative: 'Cancel',
+            }
+          );
+          
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+            Alert.alert('Permission Denied', 'Location permission is required.');
+            return;
+          }
+          
+          // Check location settings using native module
+          try {
+            await NativeModules.LocationModule.checkAndRequestLocationSettings();
+          } catch (error) {
+            console.error('Location settings error:', error);
+            Alert.alert('Location Error', 'Please enable location services and restart the app.');
+            return;
+          }
+        } catch (error) {
+          console.error('Permission error:', error);
+          return;
+        }
+      } else {
+        // iOS permissions - keep using RNLocation for iOS
+        const permission = await RNLocation.requestPermission({
+          ios: 'whenInUse',
+          android: {
+            detail: 'fine'
+          }
+        });
+        
+        if (!permission) {
+          Alert.alert('Permission Denied', 'Location permission is required.');
+          return;
+        }
+      }
+      
+      // Get current location immediately
+      await getCurrentLocation();
+      
+      // Set up a timer to periodically update location
+      locationTimerRef.current = setInterval(getCurrentLocation, 10000); // Update every 10 seconds
+    } catch (error) {
+      console.error('Error setting up location:', error);
+      Alert.alert('Location Error', 'Failed to initialize location services. Please restart the app.');
+    }
+  };
 
+  const getCurrentLocation = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        // Use our native module for Android
+        try {
+          const nativeLocation = await NativeModules.LocationModule.getLocation();
+          if (nativeLocation) {
+            setLocation({
+              latitude: nativeLocation.latitude,
+              longitude: nativeLocation.longitude,
+              accuracy: nativeLocation.accuracy || 0,
+              speed: nativeLocation.speed || null,
+              altitude: nativeLocation.altitude || null
+            });
+          }
+        } catch (nativeError) {
+          console.error('Native location error:', nativeError);
+        }
+      } else {
+        // Use RNLocation for iOS
+        try {
+          const locationData = await RNLocation.getLatestLocation({timeout: 15000});
+          if (locationData) {
+            setLocation({
+              latitude: locationData.latitude,
+              longitude: locationData.longitude,
+              accuracy: locationData.accuracy,
+              speed: locationData.speed,
+              altitude: locationData.altitude
+            });
+          } else {
+            console.log('No location data available');
+          }
+        } catch (locationError) {
+          console.error('RNLocation error:', locationError);
+        }
+      }
+    } catch (error) {
+      console.error('Location error:', error);
+      // Don't show alert on every update failure to avoid spamming the user
+    }
+  };
 
+  const handleCheckin = async () => {
+    if (!location) {
+      Alert.alert('Error', 'Location not available. Please enable location services.');
+      return;
+    }
 
-  const [isCheckedIn, setIsCheckedIn] = useState(false);
+    setLoading(true);
+    try {
+      const user = auth().currentUser;
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in to check in');
+        return;
+      }
+      
+      const response = await fetch('YOUR_BACKEND_URL/api/attendance/mark', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${await user.getIdToken()}`,
+        },
+        body: JSON.stringify({
+          latitude: location.latitude,
+          longitude: location.longitude,
+          deviceInfo: Platform.OS,
+          timestamp: new Date().toISOString(),
+        }),
+      });
 
-
-  const handleCheckin = () => {
-    setIsCheckedIn(true);
+      const data = await response.json();
+      if (response.ok) {
+        setIsCheckedIn(!isCheckedIn);
+        Alert.alert('Success', isCheckedIn ? 'Check-out successful!' : 'Check-in successful!');
+      } else {
+        Alert.alert('Error', data.message || 'Failed to mark attendance');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to mark attendance. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -68,17 +244,24 @@ const Home = ({dist}) => {
             </Text>
           </View>
           <View style={styles.status}>
-            <Text style={styles.statusTitle}>Current location:</Text>
-            <Text style={[styles.statusValue,{color:'green', fontWeight:'700'}]}>Inside 200 m radius</Text>
+            <Text style={styles.statusTitle}>Location status:</Text>
+            <Text style={[styles.statusValue, {color: location ? 'green' : 'red', fontWeight:'700'}]}>
+              {location ? 'Available' : 'Not Available'}
+            </Text>
           </View>
         </View>
-        <TouchableOpacity style={!isCheckedIn ? styles.checkinButton : styles.checkoutButton}  onPress={handleCheckin}>
-          {isCheckedIn ? <Text style={styles.checkinButtonText}>Check-out</Text> : <Text style ={styles.checkinButtonText}>Check-in</Text> }
+        <TouchableOpacity 
+          style={[!isCheckedIn ? styles.checkinButton : styles.checkoutButton, loading && styles.buttonDisabled]} 
+          onPress={handleCheckin}
+          disabled={loading}>
+          <Text style={styles.checkinButtonText}>
+            {loading ? 'Processing...' : isCheckedIn ? 'Check-out' : 'Check-in'}
+          </Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.optionsContainer}>
-        <TouchableOpacity style={styles.option}  onPress={() => navigation.navigate('Dashboard')}>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate('Dashboard')}>
           <View style={styles.optionIcon}>
             <Image
               source={{
@@ -129,7 +312,6 @@ const Home = ({dist}) => {
 
 const styles = StyleSheet.create({
   container: {
-    // flex: 1,
     backgroundColor: '#fff',
     height: '100%',
   },
@@ -139,16 +321,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     margin: 16,
     alignItems: 'center',
-  },
-  header: {
-    backgroundColor: '#f5f5f5',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-  },
-  headerText: {
-    fontSize: 24,
-    fontWeight: 'bold',
   },
   locationContainer: {
     flexDirection: 'row',
@@ -208,6 +380,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     borderRadius: 8,
     alignItems: 'center',
+  },
+  buttonDisabled: {
+    backgroundColor: '#ccc',
   },
   checkinButtonText: {
     color: '#fff',

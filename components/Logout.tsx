@@ -18,11 +18,11 @@ export default function Logout({ navigation }) {
       console.log(token)
 
       const response = await axios.post(
-        'http://192.168.160.217:8000/api/v1/users/logout',
+        'http://192.168.176.217:8000/api/v1/users/logout',
         {},
         {
           headers: {
-            Authorization:`Bearer ${token}`, // Include the token in the headers
+            Authorization: `Bearer ${token}`, // Include the token in the headers
           },
           withCredentials: true, // Ensure cookies are sent
           timeout: 5000,

@@ -134,6 +134,12 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    implementation("com.google.android.gms:play-services-location:21.0.1")
+    implementation("com.google.android.gms:play-services-base:18.2.0")
+    
+    // Add androidx.appcompat for ActivityCompat
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("androidx.core:core:1.12.0")
 
     // implementation project(':@mauron85_react-native-background-geolocation')
 

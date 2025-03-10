@@ -1,4 +1,3 @@
-
 import React, {useState} from 'react';
 import {
   StyleSheet,
@@ -7,55 +6,68 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome6';
-import Home from './Home';
-import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-
-
-
+import auth from '@react-native-firebase/auth';
+import messaging from '@react-native-firebase/messaging';
 
 const Login = props => {
-  const [emailOrUsername, setEmailOrUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
+  const [loading, setLoading] = useState(false);
 
   const loginUser = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    setLoading(true);
     try {
-      console.log('Logging in...');
-      const response = await axios.post('http://192.168.160.217:8000/api/v1/users/login', {
-        email: emailOrUsername.includes('@') ? emailOrUsername : undefined,
-        username: !emailOrUsername.includes('@') ? emailOrUsername : undefined,
-        password
+      // Sign in with Firebase
+      const userCredential = await auth().signInWithEmailAndPassword(email, password);
+      
+      // Get FCM token for push notifications
+      const fcmToken = await messaging().getToken();
+      
+      // Update user's FCM token in your backend
+      await fetch('YOUR_BACKEND_URL/api/users/fcm-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${await userCredential.user.getIdToken()}`,
+        },
+        body: JSON.stringify({ fcmToken }),
       });
 
-      console.log('Response data:', response.data);
-      
-      if (response.status === 200) {
-        const { accessToken, refreshToken } = response.data.data;
-
-        // console.log('Access Token:', accessToken);  // Log tokens for debugging
-        // console.log('Refresh Token:', refreshToken);
-  
-        if (!accessToken || !refreshToken) {
-          throw new Error('Invalid tokens received');
-        }
-        
-        // Store tokens securely
-        await AsyncStorage.setItem('accessToken', accessToken);
-        await AsyncStorage.setItem('refreshToken', refreshToken);
-  
-      
-        props.navigation.navigate('Home');
-      }
+      props.navigation.navigate('Home');
     } catch (error) {
-      console.error('Login failed', error);
+      console.error('Login failed:', error);
+      let errorMessage = 'Login failed. Please try again.';
+      
+      switch (error.code) {
+        case 'auth/invalid-email':
+          errorMessage = 'Invalid email address.';
+          break;
+        case 'auth/user-disabled':
+          errorMessage = 'This account has been disabled.';
+          break;
+        case 'auth/user-not-found':
+          errorMessage = 'No account found with this email.';
+          break;
+        case 'auth/wrong-password':
+          errorMessage = 'Incorrect password.';
+          break;
+        default:
+          errorMessage = error.message;
+      }
+      
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
-
- 
 
   return (
     <View style={styles.container}>
@@ -73,12 +85,14 @@ const Login = props => {
         <Text style={styles.loginText}>Login</Text>
 
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Username</Text>
+          <Text style={styles.inputLabel}>Email</Text>
           <TextInput
             style={styles.input}
-            value={emailOrUsername}
-            onChangeText={setEmailOrUsername}
-            placeholder="Enter your username"
+            value={email}
+            onChangeText={setEmail}
+            placeholder="Enter your email"
+            keyboardType="email-address"
+            autoCapitalize="none"
           />
         </View>
 
@@ -100,9 +114,24 @@ const Login = props => {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.loginButton} onPress={loginUser}>
-          <Text style={styles.loginButtonText}>
-            Log In
+        <TouchableOpacity 
+          style={[styles.loginButton, loading && styles.loginButtonDisabled]} 
+          onPress={loginUser}
+          disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.loginButtonText}>
+              Log In
+            </Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.registerButton}
+          onPress={() => props.navigation.navigate('Register')}>
+          <Text style={styles.registerButtonText}>
+            Don't have an account? Register
           </Text>
         </TouchableOpacity>
       </View>
@@ -168,25 +197,29 @@ const styles = StyleSheet.create({
     borderLeftWidth: 0,
     borderRightWidth: 0,
   },
-  forgotButton: {
-    alignSelf: 'flex-end',
-    marginBottom: 10,
-  },
-  forgotText: {
-    fontSize: 14,
-    color: '#666',
-  },
   loginButton: {
-    backgroundColor: '#597bff', // Blue button
+    backgroundColor: '#597bff',
     padding: 15,
     borderRadius: 5,
     width: '80%',
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loginButtonDisabled: {
+    backgroundColor: '#a0a0a0',
   },
   loginButtonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
-    textAlign: 'center',
+  },
+  registerButton: {
+    marginTop: 20,
+  },
+  registerButtonText: {
+    color: '#597bff',
+    fontSize: 16,
   },
 });
 

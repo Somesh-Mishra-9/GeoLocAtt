@@ -1,40 +1,94 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-
   View,
   Text,
   StyleSheet,
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
-  Button,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
+import auth from '@react-native-firebase/auth';
+import { format } from 'date-fns';
 
-
-
+interface AttendanceRecord {
+  _id: string;
+  timestamp: string;
+  latitude: number;
+  longitude: number;
+  status: 'valid' | 'invalid';
+  deviceInfo: string;
+}
 
 const AttendanceReport = () => {
   const [sort, setSort] = useState('Date');
   const [filter, setFilter] = useState(false);
   const [chosenDate, setChosenDate] = useState(new Date());
+  const [attendanceData, setAttendanceData] = useState<AttendanceRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
+  const fetchAttendanceData = async () => {
+    try {
+      const user = auth().currentUser;
+      const response = await fetch('YOUR_BACKEND_URL/api/attendance/history', {
+        headers: {
+          Authorization: `Bearer ${await user.getIdToken()}`,
+        },
+      });
 
-  const data = [
-    { date: '18/09/24', checkIn: '10:05:43', checkOut: '17:02:24', workingHours: '06:56:41' },
-    { date: '19/09/24', checkIn: '10:02:23', checkOut: '17:04:18', workingHours: '07:02:55' },
-    { date: '20/09/24', checkIn: '10:03:35', checkOut: '17:05:34', workingHours: '07:01:59' },
-    { date: '21/09/24', checkIn: '10:05:12', checkOut: '17:04:56', workingHours: '07:01:44' },
-    { date: '22/09/24', checkIn: '10:08:43', checkOut: '17:09:34', workingHours: '07:00:51' },
-    { date: '23/09/24', checkIn: '10:07:12', checkOut: '17:06:23', workingHours: '06:59:11' },
-    { date: '24/09/24', checkIn: '10:03:13', checkOut: '17:07:47', workingHours: '07:04:34' },
-    { date: '25/09/24', checkIn: '10:09:37', checkOut: '17:02:32', workingHours: '06:52:55' },
-    { date: '26/09/24', checkIn: '10:01:40', checkOut: '17:08:21', workingHours: '07:06:41' },
-    { date: '27/09/24', checkIn: '10:08:42', checkOut: '17:13:25', workingHours: '07:04:43' },
-    { date: '28/09/24', checkIn: '10:07:00', checkOut: '17:07:25', workingHours: '07:00:25' },
-    { date: '29/09/24', checkIn: '10:03:10', checkOut: '17:11:20', workingHours: '07:08:10' },
-    { date: '30/09/24', checkIn: '10:06:21', checkOut: '17:04:28', workingHours: '06:58:07' },
-  ];
+      if (response.ok) {
+        const data = await response.json();
+        setAttendanceData(data.data);
+      } else {
+        Alert.alert('Error', 'Failed to fetch attendance history');
+      }
+    } catch (error) {
+      console.error('Error fetching attendance:', error);
+      Alert.alert('Error', 'Failed to fetch attendance history');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAttendanceData();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchAttendanceData();
+  };
+
+  const formatTime = (timestamp: string) => {
+    return format(new Date(timestamp), 'HH:mm:ss');
+  };
+
+  const formatDate = (timestamp: string) => {
+    return format(new Date(timestamp), 'dd/MM/yy');
+  };
+
+  const calculateWorkingHours = (checkIn: string, checkOut: string) => {
+    const start = new Date(checkIn);
+    const end = new Date(checkOut);
+    const diff = end.getTime() - start.getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -44,45 +98,46 @@ const AttendanceReport = () => {
             setSort('Date');
           }}
           style={styles.filterButton}>
-            <Icon name='sort' size={20}/>
+          <Icon name='sort' size={20}/>
           <Text style={styles.filterButtonText}>Date</Text>
-
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => {
             setFilter(!filter);
           }}
           style={styles.filterButton}>
-            <Icon name='filter' size={20}/>
+          <Icon name='filter' size={20}/>
           <Text style={styles.filterButtonText}>Filter</Text>
         </TouchableOpacity>
-
-
-        <Text style={styles.filterText}>
-          From: 18/09/24
-        </Text>
-
-
-        <Text style={styles.filterText}>
-          To: 30/09/24
-          {/* <MaterialIcons name="date-range" size={24} color="black" /> */}
-        </Text>
       </View>
-      <ScrollView style={styles.tableContainer}>
+      <ScrollView 
+        style={styles.tableContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         <View style={styles.tableHeader}>
           <Text style={styles.tableHeaderItem}>Date</Text>
           <Text style={[styles.tableHeaderItem,{marginLeft:20}]}>Check-in</Text>
           <Text style={styles.tableHeaderItem}>Check-out</Text>
-          <Text style={styles.tableHeaderItem}>Working hrs</Text>
+          <Text style={styles.tableHeaderItem}>Status</Text>
         </View>
-        {data.map((item, index) => (
-          <View key={index} style={styles.tableRow}>
-            <Text style={styles.tableRowItem}>{item.date}</Text>
-            <Text style={styles.tableRowItem}>{item.checkIn}</Text>
-            <Text style={styles.tableRowItem}>{item.checkOut}</Text>
-            <Text style={styles.tableRowItem}>{item.workingHours}</Text>
+        {attendanceData.map((item, index) => (
+          <View key={item._id} style={styles.tableRow}>
+            <Text style={styles.tableRowItem}>{formatDate(item.timestamp)}</Text>
+            <Text style={styles.tableRowItem}>{formatTime(item.timestamp)}</Text>
+            <Text style={styles.tableRowItem}>-</Text>
+            <Text style={[
+              styles.tableRowItem,
+              item.status === 'valid' ? styles.validStatus : styles.invalidStatus
+            ]}>
+              {item.status === 'valid' ? 'Valid' : 'Invalid'}
+            </Text>
           </View>
         ))}
+        {attendanceData.length === 0 && (
+          <Text style={styles.emptyText}>No attendance records found</Text>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -93,19 +148,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  header: {
-    flexDirection: 'row',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-  },
-  backButton: {
-    marginRight: 16,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
   },
   filterContainer: {
     flexDirection: 'row',
@@ -125,9 +171,6 @@ const styles = StyleSheet.create({
   filterButtonText: {
     fontSize: 14,
     marginRight: 8,
-  },
-  filterText: {
-    fontSize: 16,
   },
   tableContainer: {
     paddingHorizontal: 16,
@@ -155,6 +198,20 @@ const styles = StyleSheet.create({
   },
   tableRowItem: {
     fontSize: 16
+  },
+  validStatus: {
+    color: '#008000',
+    fontWeight: 'bold',
+  },
+  invalidStatus: {
+    color: '#ff0000',
+    fontWeight: 'bold',
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 20,
+    fontSize: 16,
+    color: '#666',
   },
 });
 
